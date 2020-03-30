@@ -1,0 +1,80 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  SWTNODES: boilerplate
+  NAME_PREFIX: boilerplatev2
+  STRAPI_NAME: strapi-$NAME_PREFIX
+  DC_VERSION: "'3.6'"
+  DB_PORT: "3306"
+  SWTDBNAME: strapi_$NAME_PREFIX
+  SWTDBUSERNAME: strapiprod
+  SWTDBHOST: 192.168.123.123
+  PROD_PORT1: "1337"
+  PROD_PORT2: "1338"
+  STRAPIDOMAIN: domain.com
+  DOMAIN_UAT: $NAME_PREFIX-uat.$STRAPIDOMAIN
+  DOMAIN_PREPROD: $NAME_PREFIX-preprod.$STRAPIDOMAIN
+  DOMAIN_PRODUCTION: $NAME_PREFIX-production.$STRAPIDOMAIN
+
+
+################BUILD_PRODUCTION############
+build_production:
+  stage: build
+  tags:
+    - dockerbuild
+
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+  script:
+    - sed -i 's|SWTDBHOST|'$SWTDBHOST'|g' swtdatabase.json
+    - sed -i 's|SWTDBNAME|'$SWTDBNAME'|g' swtdatabase.json
+    - sed -i 's|SWTDBUSERNAME|'$SWTDBUSERNAME'|g' swtdatabase.json
+    - sed -i 's|SWTDBUSERPASSWD|'$SWTDBUSERPASSWD'|g' swtdatabase.json
+    - cp -rf swtdatabase.json ./strapi-app/config/environments/production/database.json
+    - cat ./strapi-app/config/environments/production/database.json
+    - docker build --force-rm -t $CI_REGISTRY_IMAGE:production .
+    - docker push $CI_REGISTRY_IMAGE:production
+
+  after_script:
+    - docker logout $CI_REGISTRY
+
+  only:
+    - master@RnD/strapi-boilerplate-v2
+
+#################DEPLOY_PRODUCTION##########
+deploy_production:
+  stage: deploy
+  tags:
+    - dockerbuild
+
+  before_script:
+    - ansible --version
+
+  script:
+    - sed -i 's|SWTIMAGENAME|'$CI_REGISTRY_IMAGE'|g' production-compose.yml
+    - sed -i 's|SWTSTRAPINAME|'$STRAPI_NAME'|g' production-compose.yml
+    - sed -i 's|SWTPRODUCTION1_PORT|'$PROD_PORT1'|g' production-compose.yml
+    - sed -i 's|SWTPRODUCTION2_PORT|'$PROD_PORT2'|g' production-compose.yml
+    - sed -i 's|SWTNODES|'$SWTNODES'|g' deploy-production.yml
+    - sed -i 's|SWTSTRAPINAME|'$STRAPI_NAME'|g' deploy-production.yml
+    - sed -i 's|SWTCI_REGISTRY|'$CI_REGISTRY'|g' deploy-production.yml
+    - sed -i 's|SWTCIUSER_REGISTRY|'$CI_REGISTRY_USER'|g' deploy-production.yml
+    - sed -i 's|SWTCIPASSWD_REGISTRY|'$CI_REGISTRY_PASSWORD'|g' deploy-production.yml
+    - sed -i 's|SWTIMAGENAME|'$CI_REGISTRY_IMAGE'|g' deploy-production.yml
+    - sed -i 's|SWTPRODUCTION1_PORT|'$PROD_PORT1'|g' production-nginx.conf
+    - sed -i 's|SWTPRODUCTION2_PORT|'$PROD_PORT2'|g' production-nginx.conf
+    - sed -i 's|SWTSTRAPINAME|'$STRAPI_NAME'|g' production-nginx.conf
+    - sed -i 's|SWTDOMAIN_PRODUCTION|'$DOMAIN_PRODUCTION'|g' production-nginx.conf
+    - cat production-compose.yml
+    - cat deploy-production.yml
+    - cat production-nginx.conf
+    - ansible-playbook deploy-production.yml
+
+  when: manual
+
+  only:
+  - master@RnD/strapi-boilerplate-v2
+  #########################################END_OF_STAGE: PRODUCTION#################################

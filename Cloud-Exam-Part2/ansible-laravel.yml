@@ -1,0 +1,42 @@
+---
+- hosts: laravel-prod
+  tasks:
+
+  - name: Install Dependencies
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    with_items:
+      - software-properties-common
+      - nginx
+      - mysql-server
+      -  php7.2
+      -  php7.2-bcmath
+      -  php7.2-cli
+      -  php7.2-common
+      -  php7.2-curl
+      -  php7.2-fpm
+      -  php7.2-gd
+      -  php7.2-json
+      -  php7.2-mbstring
+      -  php7.2-mysql
+      -  php7.2-xml
+      -  php7.2-zip
+
+  - name: Download Composer
+    get_url:
+      url: https://getcomposer.org/installer
+      dest: /tmp/installer
+
+  - name: Install Composer
+    shell: cat /tmp/installer | php -- --install-dir=/usr/local/bin
+
+  - name: Rename composer.phar to composer
+    shell: mv /usr/local/bin/composer.phar /usr/local/bin/composer
+
+  - name: Make composer executable
+    file:
+      path: /usr/local/bin/composer
+      mode: a+x
+      state: file
